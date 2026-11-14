@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "duel-fight-prompt/input.schema.json",
+  "title": "打斗分镜生成入参",
+  "type": "object",
+  "required": ["fight_type", "subjects"],
+  "properties": {
+    "fight_type": {
+      "type": "string",
+      "enum": ["仙侠武侠", "冷兵器", "巨兽搏斗", "拳脚搏击", "机甲格斗", "现代枪战"],
+      "description": "打斗类型。六类全量支持。现代枪战风控最严：中弹反馈强制改写为护具崩裂/装备脱手，见 references/08-banned-patterns.md 黑白名单"
+    },
+    "subjects": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "description": "打斗主体，1-2 个。超过 2 个返回 E_SPEC_OVERFLOW（多人同框是实证崩坏高发区）",
+      "items": {
+        "type": "object",
+        "required": ["name", "appearance"],
+        "properties": {
+          "name": { "type": "string", "description": "角色名" },
+          "role": { "type": "string", "enum": ["protagonist", "antagonist", "monster"], "default": "protagonist" },
+          "appearance": { "type": "string", "description": "外观、体型、服装描述" },
+          "weapon": { "type": "string", "description": "武器描述，无武器可省略" },
+          "fx_system": {
+            "type": "object",
+            "description": "特效体系",
+            "properties": {
+              "color": { "type": "string", "description": "特效色系，如 墨金/青白/红白/蓝色水墨/暗紫妖气" },
+              "trigger": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "触发源清单，如 [剑格, 指节, 衣摆]。为空则违反触发源铁律"
+              },
+              "form": { "type": "string", "description": "形态，如 水墨飞白/磷光/电弧/光丝" }
+            }
+          }
+        }
+      }
+    },
+    "scene": {
+      "type": "string",
+      "description": "场景描述。缺失时给 3 选 1，不静默补全"
+    },
+    "target_model": {
+      "type": "string",
+      "enum": ["seedance-2.5", "kling-4.0", "kling-4.0-flash", "minimax-h3", "auto"],
+      "default": "seedance-2.5"
+    },
+    "total_duration": {
+      "type": "integer",
+      "minimum": 15,
+      "maximum": 60,
+      "default": 30,
+      "description": "章节总时长(秒)。超 30 自动拆多章节"
+    },
+    "audio_mode": {
+      "type": "string",
+      "enum": ["none", "sfx_only", "full"],
+      "default": "sfx_only",
+      "description": "none=纯画面(兼容旧样本)；sfx_only=无BGM保留环境音与打斗音效；full=含对白"
+    },
+    "prompt_language": {
+      "type": "string",
+      "enum": ["zh", "en", "auto"],
+      "default": "auto",
+      "description": "auto 时 Seedance→zh，Kling/H3→en"
+    },
+    "violence_level": {
+      "type": "string",
+      "enum": ["none", "cinematic", "stylized_blood"],
+      "default": "cinematic"
+    },
+    "gore_elements": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["血迹", "伤痕", "破碎", "衣物破损"] },
+      "default": [],
+      "description": "显式声明的血腥元素，受 violence_level 约束"
+    },
+    "reference_style": {
+      "type": "string",
+      "pattern": "^(auto|off|[1-9]|10)$",
+      "default": "auto",
+      "description": "auto=抽取知识库；1-10=套用第N份样本结构；off=关闭参考库"
+    },
+    "shot_style": {
+      "type": "string",
+      "enum": ["A", "B", "C", "auto"],
+      "default": "auto",
+      "description": "A=累计时间轴；B=单片时长；C=内联紧凑"
+    },
+    "continuation": {
+      "type": "object",
+      "description": "续镜上下文，多轮续拍时传入",
+      "properties": {
+        "prev_tail_frame": { "type": "string", "description": "上一段尾帧描述，作为本段首帧" },
+        "character_state": { "type": "string", "description": "角色当前状态（伤势、位置、武器在手否）" },
+        "move_progress": { "type": "string", "description": "招式进度，如 已出五连斩，大招未放" },
+        "unresolved_action": { "type": "string", "description": "未完结动作，本段需接续" }
+      }
+    },
+    "output_pref": {
+      "type": "string",
+      "enum": ["storyboard", "clips", "both"],
+      "default": "both"
+    },
+    "output_format": {
+      "type": "string",
+      "enum": ["text", "json"],
+      "default": "text",
+      "description": "交付格式。text（默认）= 纯文本文档，生成段提示词放代码块可直接复制投喂，版式见 assets/templates/output-text.md；json = 按 schema/output.schema.json 结构化返回，供 Agent 程序集成"
+    },
+    "include_negative": { "type": "boolean", "default": true },
+    "motion_intensity": {
+      "type": "string",
+      "enum": ["low", "medium", "high"],
+      "default": "medium"
+    },
+    "resolution": {
+      "type": "string",
+      "enum": ["720p", "1080p", "2K", "4K"],
+      "default": "1080p",
+      "description": "4K 仅 kling-4.0 支持"
+    },
+    "aspect": {
+      "type": "string",
+      "enum": ["16:9", "9:16", "21:9", "1:1"],
+      "default": "16:9"
+    },
+    "render_style": {
+      "type": "string",
+      "default": "cinematic_3d",
+      "description": "画面风格词（8K/PBR/UE5等），仅作风格描述，不影响输出分辨率"
+    }
+  },
+  "additionalProperties": false
+}

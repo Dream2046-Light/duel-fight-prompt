@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "duel-fight-prompt/output.schema.json",
+  "title": "打斗分镜生成返回",
+  "description": "仅当入参 output_format=json 时适用。output_format=text（默认）时，返回物为 assets/templates/output-text.md 定义的纯文本文档：生成段提示词置于独立代码块，可直接复制投喂，不套用本 schema。",
+  "type": "object",
+  "required": ["status", "storyboard", "clips", "warnings", "errors", "meta"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded", "blocked", "error"],
+      "description": "ok=正常；degraded=已自动简化(非致命，见warnings)；blocked=命中风控；error=失败(见errors)"
+    },
+    "storyboard": {
+      "type": "string",
+      "description": "中文分镜稿，四段骨架，人读/审片/存档用。output_pref=clips 时可为空串"
+    },
+    "clips": {
+      "type": "array",
+      "description": "生成段数组，Agent 逐条投喂视频模型。output_pref=storyboard 时可为空数组",
+      "items": {
+        "type": "object",
+        "required": ["index", "duration_s", "prompt", "params"],
+        "properties": {
+          "index": { "type": "integer", "description": "段序号，从 1 开始" },
+          "duration_s": {
+            "type": "integer",
+            "description": "生成段时长(秒)，必须落在目标模型 clip_duration 区间内"
+          },
+          "shot_range": {
+            "type": "string",
+            "description": "本段覆盖的分镜镜范围，如 分镜3-5"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "正向提示词，按目标模型方言渲染"
+          },
+          "negative": {
+            "type": "string",
+            "description": "负面提示词，include_negative=false 时为空串"
+          },
+          "params": {
+            "type": "object",
+            "properties": {
+              "resolution": { "type": "string" },
+              "aspect": { "type": "string" },
+              "audio": { "type": "string", "enum": ["none", "sfx", "full"] },
+              "motion_intensity": { "type": "string", "enum": ["low", "medium", "high"] },
+              "content_filter": { "type": "string", "description": "模型侧内容过滤设置" }
+            }
+          },
+          "keyframes": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "关键帧描述。kling-4.0 最多 10 张，其余首尾帧 2 张"
+          },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "本段级风险标记，如 【动作易崩坏】"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "全局风险标记。允许值前缀：【动作易崩坏】【内容边界】【超规格已降级】【参考库关闭】"
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": ["E_MISSING_REQUIRED", "E_SPEC_OVERFLOW", "E_CONTENT_BLOCKED", "E_MODEL_UNSUPPORTED", "E_DEGRADED"]
+          },
+          "message": { "type": "string", "description": "人类可读说明，含边界解释或替代方案" },
+          "field": { "type": "string", "description": "出错的入参字段名" }
+        }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["mode", "model", "shot_style", "selection_reason", "template_version"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["create", "rewrite"] },
+        "model": { "type": "string" },
+        "shot_style": { "type": "string", "enum": ["A", "B", "C"] },
+        "selection_reason": {
+          "type": "string",
+          "description": "选型一句话理由，必填，便于 Agent 与用户复核"
+        },
+        "defaults_applied": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "本次使用了哪些默认值的字段名，便于追溯"
+        },
+        "template_version": { "type": "string" },
+        "violence_level": { "type": "string" },
+        "audio_mode": { "type": "string" },
+        "reference_style": { "type": "string" },
+        "log_id": { "type": "string" }
+      }
+    }
+  }
+}

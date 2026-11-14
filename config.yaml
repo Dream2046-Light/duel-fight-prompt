@@ -1,0 +1,119 @@
+# duel-fight-prompt 配置文件
+# 所有默认值集中在此，Agent 调用时的显式入参优先于本文件
+
+version: "1.0.0"
+
+# ---------- 默认输出参数 ----------
+defaults:
+  target_model: "seedance-2.5"        # seedance-2.5(主力·中文) / kling-4.0 / kling-4.0-flash / minimax-h3 / auto
+  total_duration: 30                  # 章节总时长(秒)，15-60；超 30 自动拆多章节
+  audio_mode: "sfx_only"              # none(纯画面·兼容旧样本) / sfx_only(无BGM保留音效) / full(含对白)
+  prompt_language: "auto"             # zh / en / auto（auto: Seedance→zh, Kling/H3→en）
+  violence_level: "cinematic"         # none / cinematic(默认) / stylized_blood
+  resolution: "1080p"                 # 720p / 1080p / 2K / 4K(仅 kling-4.0)
+  aspect: "16:9"                      # 16:9 / 9:16 / 21:9 / 1:1（按模型能力校验）
+  motion_intensity: "medium"          # low / medium / high
+  output_pref: "both"                 # storyboard / clips / both
+  include_negative: true
+  reference_style: "auto"             # auto / off / 1-10（指定样本模板编号）
+  shot_style: "auto"                  # A(累计时间轴) / B(单片时长) / C(内联紧凑) / auto
+  render_style: "cinematic_3d"        # 8K/PBR/UE5 等风格词，仅作画面风格描述，不影响输出分辨率
+
+# ---------- 模型硬上限（超出即返回 E_SPEC_OVERFLOW，禁止静默截断） ----------
+models:
+  seedance-2.5:
+    clip_duration: [4, 30]
+    duration_step: 1
+    resolution: ["480p", "720p", "1080p"]
+    aspect: ["16:9", "9:16", "21:9"]
+    prompt_max_chars: 7000            # 官方未公开，按保守值
+    max_subjects: 2
+    language: "zh"
+    reference: { images: 30, videos: 10, audios: 10 }
+    keyframes: "first-last"           # 首尾帧 2 张
+    content_filter: true              # 有 content_filter 参数
+    audio: true
+
+  kling-4.0:
+    clip_duration: [3, 30]
+    duration_step: 1
+    resolution: ["720p", "1080p", "4K"]
+    aspect: ["21:9", "16:9", "1:1", "9:16", "auto"]
+    prompt_max_chars: 7000            # 官方 8000 tokens / 26000 英文字符，取保守值
+    max_subjects: 2
+    language: "en"
+    reference: { images: 10, videos: 5, subjects: 7, total: 15 }
+    keyframes: "flexible-10"          # 最多 10 张关键帧
+    content_filter: "platform"
+    audio: true
+    notes: "官方强化大幅动态与复杂运镜；续拍累计最长 2 分钟"
+
+  kling-4.0-flash:
+    clip_duration: [3, 20]
+    duration_step: 1
+    resolution: ["720p"]
+    aspect: ["21:9", "16:9", "1:1", "9:16", "auto"]
+    prompt_max_chars: 7000
+    max_subjects: 2
+    language: "en"
+    content_filter: "platform"
+    audio: true
+
+  minimax-h3:
+    clip_duration: [4, 15]
+    duration_step: 1                  # 整数秒
+    resolution: ["768p", "2K"]
+    aspect: ["16:9", "9:16", "1:1", "4:3", "21:9", "3:4"]
+    prompt_max_chars: 7000
+    max_subjects: 2
+    language: "en"                    # 官方指南：英文最稳，镜头词汇为英文定义
+    reference: { images: 9, videos: 3, audios: 3, total: 12 }
+    keyframes: "first-last"
+    content_filter: "platform"
+    audio: true
+    requires_soundscape: true         # 不写 overall_soundscape 会出无声片
+    notes: "支持指令式编辑(In-Context Regeneration)，可局部修改不重跑"
+
+# ---------- 跨模型交集安全值（默认天花板，需更长须显式声明） ----------
+safe_common:
+  clip_duration: [4, 15]
+  max_subjects: 2
+  prompt_body_chars: [300, 800]       # 超出上限触发 WARN
+  shots_per_clip: [2, 4]              # 2-4 个分镜镜合并为 1 个生成段
+
+# ---------- 风控 ----------
+safety:
+  default_level: "cinematic"
+  levels:
+    none:
+      allow: ["能量特效", "光影表现", "衣物破损"]
+      deny: ["血迹", "伤口", "血雾"]
+    cinematic:
+      allow: ["影视化打斗", "能量冲击", "衣物破损", "擦伤", "风格化轻微血迹(非写实喷溅)"]
+      deny: ["断肢", "内脏", "骨骼外露", "虐杀", "写实血腥特写"]
+    stylized_blood:
+      allow: ["明确溅血", "伤痕", "血迹附着"]
+      deny: ["写实血腥特写", "断肢", "酷刑"]
+  permanent_deny:                     # 任何级别都不可绕过
+    - "未成年人作为打斗主体或受害者"
+    - "虐待 / 酷刑 / 处刑式描写"
+    - "真实可识别个人或团体的暴力内容"
+    - "断肢 / 内脏 / 虐杀细节"
+    - "真实恐怖主义场景"
+  filters:
+    - "入参过滤：接收参数时匹配黑名单，命中直接 E_CONTENT_BLOCKED"
+    - "组装后自检：提示词生成后二次扫描，防隐喻绕过"
+    - "模型侧：Seedance 显式设 content_filter，Kling/H3 声明为平台审核内容"
+
+# ---------- 参考库 ----------
+reference_library:
+  enabled: true
+  version: "1.0.0"
+  samples: 10
+  allow_indexing: true                # 允许 reference_style=1-10 指定结构
+  strip_private_fields: true          # 剥离集数编号、署名等样例私有信息
+
+# ---------- 日志 ----------
+logging:
+  record: ["入参摘要", "最终提示词", "模板编号与版本", "命中风控项", "降级动作", "耗时"]
+  exclude: ["原始对话全文", "参考图本体(只记素材ID)"]
